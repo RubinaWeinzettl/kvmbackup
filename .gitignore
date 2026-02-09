@@ -1,0 +1,10 @@
+# Local / productive manifests
+*.local.yaml
+
+# SSH / secrets
+id_rsa
+id_rsa.pub
+*.key
+*.pem
+known_hosts
+
