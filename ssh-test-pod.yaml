@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kvm-ssh-test
+  namespace: kvmbp
+spec:
+  restartPolicy: Never
+  containers:
+    - name: ssh
+      image: alpine:3.20
+      command: ["/bin/sh","-lc"]
+      args:
+        - |
+          set -e
+          apk add --no-cache openssh-client
+          mkdir -p /root/.ssh
+          cp /secrets/id_rsa /root/.ssh/id_rsa
+          chmod 600 /root/.ssh/id_rsa
+          cp /known/known_hosts /root/.ssh/known_hosts
+          chmod 644 /root/.ssh/known_hosts
+          cat > /root/.ssh/config <<'EOF'
+          Host kvm
+            HostName KVM_HOST
+            User KVM_USER
+            Port KVM_PORT
+            IdentityFile /root/.ssh/id_rsa
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+          echo "Testing SSH..."
+          ssh -v kvm "hostname && ls -la"
+      volumeMounts:
+        - name: ssh-key
+          mountPath: /secrets
+          readOnly: true
+        - name: known-hosts
+          mountPath: /known
+          readOnly: true
+  volumes:
+    - name: ssh-key
+      secret:
+        secretName: kvm-ssh
+    - name: known-hosts
+      secret:
+        secretName: kvm-known-hosts
