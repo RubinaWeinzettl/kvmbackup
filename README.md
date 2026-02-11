@@ -52,6 +52,12 @@ See `.gitignore` for excluded files.
 
 ---
 
+## Anonymization Notice
+
+All hostnames, usernames, ports and environment-specific configuration values in this repository have been anonymized. The manifests provided here are structural templates and do not expose any production credentials or sensitive infrastructure details.
+
+---
+
 ## Usage
 
 This repository is intended as a **reference and operational baseline**.
