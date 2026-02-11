@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: restic-init
+  namespace: kvmbp
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: restic
+          image: restic/restic:0.17.3
+          env:
+            - name: RESTIC_REPOSITORY
+              value: /repo
+            - name: RESTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restic-secret
+                  key: RESTIC_PASSWORD
+          command: ["/bin/sh","-lc"]
+          args:
+            - |
+              set -e
+              restic init
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+      volumes:
+        - name: repo
+          persistentVolumeClaim:
+            claimName: kvmbp-pvc

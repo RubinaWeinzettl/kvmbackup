@@ -1,0 +1,79 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restic-backup
+  namespace: kvmbp
+spec:
+  # Daily at 02:00
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: backup
+              image: alpine:3.20
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: /repo
+                - name: RESTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: restic-secret
+                      key: RESTIC_PASSWORD
+              command: ["/bin/sh","-lc"]
+              args:
+                - |
+                  set -e
+                  set -o pipefail
+
+                  apk add --no-cache restic openssh-client tar
+
+                  mkdir -p /root/.ssh
+                  cp /secrets/id_rsa /root/.ssh/id_rsa
+                  chmod 600 /root/.ssh/id_rsa
+                  cp /known/known_hosts /root/.ssh/known_hosts
+                  chmod 644 /root/.ssh/known_hosts
+
+                  cat > /root/.ssh/config <<'EOF'
+                  Host kvm
+                    HostName KVM_HOST
+                    User KVM_USER
+                    Port KVM_SSH_PORT
+                    IdentityFile /root/.ssh/id_rsa
+                    IdentitiesOnly yes
+                    StrictHostKeyChecking yes
+                  EOF
+
+                  # Stream /root/test from the KVM host into restic (example path)
+                  ssh kvm "tar -C / -cf - root/test" | \
+                    restic backup \
+                      --stdin --stdin-filename kvm-root-test.tar \
+                      --tag kvm --tag nightly
+
+                  # Retention example: keep 7 daily snapshots
+                  restic forget --keep-daily 7 --prune
+              volumeMounts:
+                - name: repo
+                  mountPath: /repo
+                - name: ssh-key
+                  mountPath: /secrets
+                  readOnly: true
+                - name: known-hosts
+                  mountPath: /known
+                  readOnly: true
+          volumes:
+            - name: repo
+              persistentVolumeClaim:
+                claimName: kvmbp-pvc
+            - name: ssh-key
+              secret:
+                secretName: kvm-ssh
+            - name: known-hosts
+              secret:
+                secretName: kvm-known-hosts

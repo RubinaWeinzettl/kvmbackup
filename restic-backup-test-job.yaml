@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: restic-backup-test
+  namespace: kvmbp
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: backup
+          image: restic/restic:0.17.3
+          env:
+            - name: RESTIC_REPOSITORY
+              value: /repo
+            - name: RESTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restic-secret
+                  key: RESTIC_PASSWORD
+          command: ["/bin/sh","-lc"]
+          args:
+            - |
+              set -e
+              mkdir -p /root/.ssh
+              cp /secrets/id_rsa /root/.ssh/id_rsa
+              chmod 600 /root/.ssh/id_rsa
+              cp /known/known_hosts /root/.ssh/known_hosts
+              chmod 644 /root/.ssh/known_hosts
+
+              echo "Running restic backup from KVM: /root/test"
+              restic backup --verbose \
+                --stdin --stdin-filename kvm-root-test.tar \
+                --tag kvm --tag test <<'EOF'
+              EOF
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+            - name: ssh-key
+              mountPath: /secrets
+              readOnly: true
+            - name: known-hosts
+              mountPath: /known
+              readOnly: true
+      volumes:
+        - name: repo
+          persistentVolumeClaim:
+            claimName: kvmbp-pvc
+        - name: ssh-key
+          secret:
+            secretName: kvm-ssh
+        - name: known-hosts
+          secret:
+            secretName: kvm-known-hosts
