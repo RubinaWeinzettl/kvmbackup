@@ -35,9 +35,12 @@ This repository documents **how the infrastructure is wired**, not the confident
 ## Repository Contents
 
 | File | Description |
-|-----|------------|
+|------|------------|
 | `pv.yaml` | PersistentVolume definition for backup storage |
 | `pvc.yaml` | PersistentVolumeClaim used by the backup workload |
+| `restic-init-job.yaml` | One-time Kubernetes Job used to initialize the restic repository |
+| `restic-backup-test-job.yaml` | Anonymized test job for validating SSH-based backups |
+| `restic-backup-cronjob.yaml` | Production-ready CronJob template for scheduled restic backups |
 | `ssh-test-pod.yaml` | Anonymized test pod for validating SSH connectivity |
 
 ---
