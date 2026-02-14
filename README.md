@@ -1,79 +1,105 @@
-# Kubernetes KVM Backup
+# Kubernetes KVM Backup Architecture
 
-This repository contains the Kubernetes manifests and configuration templates for a **production backup setup**.
+This repository documents a Kubernetes-based backup architecture designed to protect multiple Docker Compose applications running on a KVM host.
 
-The backup solution runs as a Kubernetes workload and performs **SSH-based backups** from a remote KVM host to persistent storage inside the cluster.
+Backups are executed as Kubernetes workloads and retrieve data via SSH from a remote server. Data is stored in an encrypted restic repository.
 
-No secrets or environment-specific credentials are stored in this repository.
+All configuration files in this repository are anonymized. No credentials or sensitive infrastructure details are included.
 
 ---
 
-## Scope
+## Development Phase (Test Cluster)
 
-The repository focuses on the **infrastructure layer** of the backup system:
+The initial implementation was developed independently on a test cluster.
 
-- Kubernetes PersistentVolume and PersistentVolumeClaim definitions
-- Kubernetes Pods / CronJob templates used for SSH connectivity and backup execution
-- Anonymized configuration templates suitable for public sharing
+During this phase:
 
-Operational details such as credentials, hostnames, ports, and secrets are intentionally excluded.
+- A small local PersistentVolume was created within the cluster for testing purposes
+- The restic repository initialization workflow was implemented
+- SSH key-based authentication was configured
+- Backup CronJobs were built and validated
+- Test snapshots were successfully created and verified
+
+The implementation was carried out independently with technical support from AI tools.
+
+The manifests included in this repository reflect this test-cluster setup.
+
+---
+
+## Production Deployment
+
+The production rollout was performed in a collaborative sparring setup.
+
+In production:
+
+- The restic repository is stored on an NFS-backed PersistentVolume
+- The NFS share resides on a NAS system
+- Operational manifests are maintained in a private GitLab repository
+- Deployment is performed via ArgoCD (GitOps)
+
+During deployment, several issues were identified and resolved:
+
+- Missing NFS target directory
+- Unreplaced placeholder values in configuration templates
+- StorageClass mismatch between PersistentVolume and PersistentVolumeClaim
 
 ---
 
 ## Architecture Overview
 
-- A Kubernetes cluster hosts the backup workload
-- Persistent storage is provided via a Kubernetes PersistentVolume
-- The backup pod connects to a KVM host via SSH (read-only access)
-- Database dumps are created on the KVM host by a separate cron job and included in the backup
-- Monitoring and alerting are handled externally (e.g. via Grafana)
-
-This repository documents **how the infrastructure is wired**, not the confidential runtime configuration.
-
----
-
-## Repository Contents
-
-| File | Description |
-|------|------------|
-| `pv.yaml` | PersistentVolume definition for backup storage |
-| `pvc.yaml` | PersistentVolumeClaim used by the backup workload |
-| `restic-init-job.yaml` | One-time Kubernetes Job used to initialize the restic repository |
-| `restic-backup-test-job.yaml` | Anonymized test job for validating SSH-based backups |
-| `restic-backup-cronjob.yaml` | Production-ready CronJob template for scheduled restic backups |
-| `ssh-test-pod.yaml` | Anonymized test pod for validating SSH connectivity |
+- Kubernetes CronJobs execute scheduled backups
+- Separate CronJobs per application directory
+- SSH key-based authentication to the KVM host
+- Encrypted restic repository
+- Retention management using `restic forget --prune`
+- GitOps deployment via ArgoCD
 
 ---
 
-## Security Notes
+## Current Backup Strategy
 
-- No private keys, passwords, or tokens are committed
-- SSH keys, hostnames, ports, and credentials are provided via Kubernetes Secrets outside this repository
-- Local or productive manifests should use separate, ignored files (e.g. `*.local.yaml`)
+At the moment, directories are streamed via `tar` over SSH into restic using stdin.
 
-See `.gitignore` for excluded files.
+Example concept:
+ssh remote "tar -cf - /path" | restic backup --stdin
+
+
+This approach is stable and simple. However, restic sees only a single archive file instead of individual files.
+
+As a result:
+
+- Any change inside the archive (e.g. a new database dump)
+  causes the entire archive to be stored again
+- File-level deduplication is not fully utilized
+- Restore operations extract the archive as a whole
 
 ---
 
-## Anonymization Notice
+## Planned Improvement
 
-All hostnames, usernames, ports and environment-specific configuration values in this repository have been anonymized. The manifests provided here are structural templates and do not expose any production credentials or sensitive infrastructure details.
+The backup process will be refactored to pass files directly to restic instead of wrapping them in a tar archive.
+
+This will enable:
+
+- Proper file-level deduplication
+- More efficient incremental backups
+- Reduced storage consumption
+- More granular restore capabilities
+
+This change aligns the implementation more closely with restic’s design principles and improves long-term efficiency.
 
 ---
 
-## Usage
+## Security
 
-This repository is intended as a **reference and operational baseline**.
-
-Before applying manifests in a production environment:
-- Replace placeholders with environment-specific values
-- Provide required credentials via Kubernetes Secrets
-- Review storage paths and access permissions
+- All hostnames, usernames, ports and environment-specific values are anonymized
+- No private keys or credentials are stored in this repository
+- Production secrets are managed via Kubernetes Secret resources
 
 ---
 
 ## Status
 
-This project is currently under active development.
-Once finalized, it will be used in a productive environment.
-The repository is updated continuously as the backup setup evolves.
+The backup architecture is deployed and operational in production.
+This repository represents the anonymized test-cluster implementation.
+
